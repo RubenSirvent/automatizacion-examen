@@ -1,0 +1,82 @@
+name: CI Automatizacion de Pruebas
+
+on:
+  push:
+    branches:
+      - main
+      - feature/automatizacion
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  build:
+
+    name: Build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Compilar proyecto
+        run: mvn -B clean package -DskipTests
+
+
+  unit-tests:
+
+    name: Pruebas unitarias
+
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Ejecutar pruebas unitarias
+        run: mvn -B test
+
+
+  integration-tests:
+
+    name: Pruebas de integracion
+
+    needs: unit-tests
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Ejecutar pruebas de integracion
+        run: mvn -B verify
