@@ -1,0 +1,115 @@
+name: Deployment Blue-Green
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulate_rollback:
+        description: "Simular rollback después del despliegue"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+
+  build:
+    name: Construccion del proyecto
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Construir proyecto
+        run: mvn -B clean package -DskipTests
+
+      - name: Guardar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: aplicacion
+          path: target/*.jar
+
+
+  acceptance-tests:
+    name: Pruebas de aceptacion
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Ejecutar pruebas de aceptacion
+        run: mvn -B test -Dtest=AcceptanceTest
+
+
+  deployment:
+    name: Despliegue Blue-Green
+    needs: acceptance-tests
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Descargar artefacto
+        uses: actions/download-artifact@v4
+        with:
+          name: aplicacion
+          path: target
+
+      - name: Preparar ambiente Green
+        run: |
+          mkdir -p deployments/test/blue
+          mkdir -p deployments/test/green
+
+          echo "1.0" > deployments/test/blue/version.txt
+          echo "blue" > deployments/test/current.txt
+
+          cp target/*.jar deployments/test/green/aplicacion.jar
+          echo "2.0" > deployments/test/green/version.txt
+
+          echo "Ambiente Green preparado"
+          cat deployments/test/green/version.txt
+
+      - name: Cambiar trafico a Green
+        run: |
+          echo "green" > deployments/test/current.txt
+
+          echo "Ambiente activo:"
+          cat deployments/test/current.txt
+
+      - name: Ejecutar rollback
+        if: ${{ inputs.simulate_rollback }}
+        run: |
+          echo "Se detecto un fallo simulado en Green"
+          echo "Iniciando rollback..."
+          
+          echo "blue" > deployments/test/current.txt
+
+          echo "Rollback completado"
+          echo "Ambiente activo:"
+          cat deployments/test/current.txt
+
+      - name: Confirmar despliegue
+        if: ${{ !inputs.simulate_rollback }}
+        run: |
+          echo "Despliegue Blue-Green completado correctamente"
+          echo "Ambiente activo:"
+          cat deployments/test/current.txt
